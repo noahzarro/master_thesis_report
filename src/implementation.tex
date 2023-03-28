@@ -10,7 +10,73 @@ Derive a structure for this chapter that is meaningful for your report and discu
 \section{Libraries}
 \label{sec:libraries}
 Since RISC-V support is minimal in the Rust embedded world, several libraries had to be created or extended.
-First, the RISC-V \gls{mac}, had to be extended with support for the \gls{clic}. Furthermore, in the runtime crate, the vector tables needed to be set up such that they were compatible with the \gls{clic}. Finally, we also had to implement a macro (the Rust equivalent of a function attribute) to specify interrupt handlers.
+First, the RISC-V \gls{mac}, had to be extended with support for the \gls{clic}. Furthermore, in the runtime crate, the vector tables needed to be set up such that they were compatible with the \gls{clic}. 
+Finally, we also had to implement a macro (the Rust equivalent of a function attribute) to specify interrupt handlers.
+
+\subsection{Control Status Registers}
+The \gls{clic} introduces a variety of new CSRs, that are added to the \gls{mac}. It includes among others the \texttt{mintthresh} register, that allows to set the interrupt priority threshold as described in section \ref{sec:interrupt_configuration}. Only the machine mode \gls{csr}s are added to the \gls{mac}, because the test IP only featured machine mode. The \gls{csr}s for the other modes, however, could be easily added.
+
+\subsection{Setup}
+Since the \gls{clic} calls for a different interrupt configuration at startup than the default RISC-V interrupt controller, the runtime crate was adjusted accordingly.
+If an interrupt or an exception occurs, there are two possibilities how it can be handled.
+Either, it is a vectorized interrupt that can be handled by an entry in the vector table. The start address of the vector table is then read from the \texttt{mtvec} \gls{csr}. 
+
+On the other hand, if an exception, or a non vectorized interrupt has to be handled, the default handler address is read from the \texttt{mtvt} \gls{csr}.
+
+Therefore, during the startup process, these two registers need to be set accordingly. They are set to the addresses of the labels \texttt{interrupt_vector} and \texttt{_start_trap}. Per default, the \texttt{_start_trap} label is set to a function that just does an infinite loop.
+
+\subsection{Interrupt Vector}
+\label{sec:vector_table}
+The runtime crate provides a piece of assembly code with jump instructions to the labels \texttt{int_0} to \texttt{int_264}. These labels can be defined by the user in different ways, as described in section \ref{sec:interrupt_handler_macro}.
+
+\subsection{Context Switch}
+\label{sec:context_switch}
+As soon as an interrupt handler is called, a full context switch has to happen. This means that all caller saved registers must be saved to the stack. If nested interrupts are allowed, the \gls{csr}s \texttt{mcause} and \texttt{mepc}, the cause of the interrupt and the return address, have to be saved as well. Furthermore, the callee saved registers must be saved as in any other function.
+
+\subsection{Interrupt Handler Macro}
+\label{sec:interrupt_handler_macro}
+GCC provides a function attribute \texttt{__attribute__ ((interrupt ("machine")))} that can be added to an interrupt handler and handles all necessary steps described in section \ref{sec:context_switch}. For Rust, however, this did not yet exist. Therefore, we implemented a procedural macro \texttt{\#[interrupt_handler()]} that generates code that accounts for the context switch.
+First, an assembly code block is generated as seen in listing \ref{lst:interruptHandler}.
+It performs the context switch. Then it jumps into the actual handler function, that is a normal Rust function. Since it is a normal Rust function, it saves all callee saved registers.
+As soon as the handler function returns, the context is restored again.
+Ideally, only the callee saved registers that are actually used by the handler function would be saved. However, to achieve this, compiler support would be needed, which is not yet available for Rust. And furthermore, the handler function would have to be a leaf function.
+
+\begin{lstlisting}[language={[RISC-V]Assembler}, caption={Interrupt Handler Wrapper}, label={lst:interruptHandler}]
+    .global wrapper_label
+    wrapper_label:
+    addi sp, sp, -(4 * 32)
+    sw ra, 0(sp)
+    /* save t0 to a5 (all caller save registers) */
+    sw t6, 60(sp)
+    csrr t0, mcause
+    csrr t1, mepc
+    sw t0, 64(sp)
+    sw t1, 68(sp)
+    csrsi mstatus, 8 /* enable global interrupts*/
+    
+    jal handler_label /* jump to rust handler function */
+    
+    csrci mstatus, 8 /* disable global interrupts*/
+    lw t0, 64(sp)
+    lw t1, 68(sp)
+    csrw mcause, t0
+    csrw mepc, t1
+    lw ra, 0(sp)
+    /* restore t0 to a5 (all caller save registers) */
+    lw t6, 60(sp)
+    addi sp, sp, (4 * 32)
+    mret
+\end{lstlisting}
+
+\subsection{Labels}
+\label{sec:interrupt_macro_labels}
+The labels in listing \ref{lst:interruptHandler} are determined as follows. The \texttt{handler_label} is set to \texttt{<handler_name>_handler}, where \texttt{<handler_name>} the name of the original Rust handler function to which the \texttt{\#[interrupt(arg)]} macro is added. The \texttt{wrapper_label} can be set in three different ways, that depend on the argument \texttt{arg} of the macro. If the macro is a number \texttt{i}, then the \texttt{wrapper_label} is set to \texttt{int_i}. It directly corresponds to the label in the vector table, see section~\ref{sec:vector_table}.
+
+Alternatively, the argument can be set to a name of an interrupt enum, defined in the \gls{pac} crate. 
+The \gls{pac} crate contains an enum with all available interrupts available in this \gls{soc} with meaningful names, as for example \texttt{UART0}. In this scenario, \texttt{wrapper_label} is set to the string representation of the enum identifier.
+The linker script in the \gls{soc} crate contains a list of \texttt{PROVIDE(int_23 = UART0);} entries, one for each enum item. Like this, the symbol \texttt{int_i} is set to the address of the corresponding enum label, if \texttt{int_i} is defined nowhere else.
+
+Finally, if the argument is omitted, the \texttt{wrapper_label} is just set to the original name of the handler function (the new name of the handler function is now \texttt{<original_name>_handler}). In this case, the corresponding \texttt{PROVIDE(int_i = <original_name>)} has to be added manually to the linker script of the program.
 
 \section{RTIC}
 

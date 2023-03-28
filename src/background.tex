@@ -107,8 +107,27 @@ These crates go one step further than a \gls{hal} crate by preconfiguring variou
 These crates provide all code that is required to get to main. They usually feature either some low level Rust or even assembly code that initializes all registers, such as the stack pointer, setup interrupt vectors and finally call \texttt{main}. Furthermore, they provide macros to specify interrupt handlers. A RISC-V version of a runtime crate does exist, however only in a minimalistic version, without interrupt handler support.
 
 \section{Interrupt Controller}
-Since \gls{rtic} heavily relies on interrupts for tasks, it is also very dependent on a powerful interrupt controller hardware. Originally, \gls{rtic} was designed for \gls{nvic}
+\label{sec:interrupt_controller}
+Since \gls{rtic} heavily relies on interrupts for tasks, it is also very dependent on a powerful interrupt controller hardware.
+Originally, \gls{rtic} was designed to be used with the \gls{nvic}.
+For RISC-V the \gls{clic} is the most advanced interrupt controller available.
+Fortunately, they are quite similar.
+In the following, their major features are explained, and the main differences are stressed out~\cite{NVIC}\cite{CLIC}. 
 
-\section{NVIC}
+\subsection{Vectorization}
+\label{sec:vectorization}
+The \gls{nvic} and the \gls{clic} are both vectorized interrupt controllers.
+For the \gls{nvic}, this means, that there exists a table of addresses of interrupt handler functions, the vector table. For each interrupt, there exists an entry in the table. If an interrupt occurs, the program counter is set automatically to the address of the interrupt handler that is associated with the interrupt.
+According to the specification, the vector table of the \gls{clic} works in the same way.
+In the specific implementation of our group, however, it is not filled with addresses, but with jump instructions to the different interrupt handlers.
+It has the same effect, but requires a different setup process of the interrupt table.~\cite{NVIC}\cite{CLIC}
 
-\section{CLIC}
+\subsection{Configuration}
+\label{sec:interrupt_configuration}
+Both the \gls{nvic} and the \gls{clic} allow for setting priority levels for interrupts individually.
+Higher priority interrupts preempt lower priority interrupts.
+Both implementation feature 256 interrupt levels. However, while for the \gls{clic} the most urgent interrupt has priority 255, the \gls{nvic} inverts priority levels, and considers interrupts with the lowest priority value as the most urgent.
+Similarly, the triggers can be configured for each interrupt individually. Both \gls{clic} and \gls{nvic} feature level and edge sensitive triggers. For certain implementation of \gls{nvic} and all \gls{clic} implementations, it is possible to set priority threshold. Interrupts with priority below this threshold can be pended, but will not be executed until the threshold is lowered. For both implementations, this threshold can be dynamically changed at runtime.
+Furthermore, for the \gls{clic}, interrupts can be configured to be non vectorized, and therefore they will use the same handler as the default exception handler. 
+~\cite{NVIC}\cite{CLIC}.
+
