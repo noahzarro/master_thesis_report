@@ -35,7 +35,7 @@ As soon as an interrupt handler is called, a full context switch has to happen. 
 
 \subsection{Interrupt Handler Macro}
 \label{sec:interrupt_handler_macro}
-GCC provides a function attribute \texttt{__attribute__ ((interrupt ("machine")))} that can be added to an interrupt handler and handles all necessary steps described in section \ref{sec:context_switch}. For Rust, however, this did not yet exist. Therefore, we implemented a procedural macro \texttt{\#[interrupt_handler()]} that generates code that accounts for the context switch.
+GCC provides a function attribute \texttt{__attribute__ ((interrupt ("machine")))} that can be added to a RISC-V interrupt handler and handles all necessary steps described in section \ref{sec:context_switch}. For Rust, however, this did not yet exist. Therefore, we implemented a procedural macro \texttt{\#[interrupt_handler()]} that generates code that accounts for the context switch.
 First, an assembly code block is generated as seen in listing \ref{lst:interruptHandler}.
 It performs the context switch. Then it jumps into the actual handler function, that is a normal Rust function. Since it is a normal Rust function, it saves all callee saved registers.
 As soon as the handler function returns, the context is restored again.
@@ -78,8 +78,72 @@ The linker script in the \gls{soc} crate contains a list of \texttt{PROVIDE(int_
 
 Finally, if the argument is omitted, the \texttt{wrapper_label} is just set to the original name of the handler function (the new name of the handler function is now \texttt{<original_name>_handler}). In this case, the corresponding \texttt{PROVIDE(int_i = <original_name>)} has to be added manually to the linker script of the program.
 
+\section{NXTI}
+The \gls{clic} contains a hardware extension that can be used to avoid unnecessary context switches. It is a \gls{csr} that provides the address of the vector table entry of the next interrupt that is pending and can be handled in the current context, while no context switch is necessary. The software changes used for nxti support can be activated by using the \texttt{nxti} feature in the runtime and \gls{rtic} crate.
+
+\subsection{Implementation}
+To make use of the nxti \gls{csr}, the interrupt procedure must be changed. The vector table is now filled with jump instructions directly to the Rust handler functions. Since by directly jumping to the Rust functions there would be no context saving or restoring, vectorizing of interrupts is disabled. Therefore, all interrupts are handled by a single interrupt handler, the \texttt{_nxti_trap_handler} that is defined in the runtime crate. It is described in listing \ref{lst:nxtiHandler}.
+
+First, the context is saved. Then a loop is executed that checks if any other interrupt can be executed. Any interrupt that is pending and has greater priority than the saved interrupt context can be served. The available interrupts are then executed sequentially. This means that the processor jumps and links to the vector table entry of the interrupt that must be served. There it jumps to the Rust handler function and then returns directly back to the \texttt{_nxti_trap_handler}.
+
+If there are no more interrupts that can be served in the current context, the original context is restored, and program execution resumes where the original interrupt happened.
+
+\begin{lstlisting}[language={[RISC-V]Assembler}, caption={Nxti Trap Handler}, label={lst:nxtiHandler}]
+.global _nxti_trap_handler
+_nxti_trap_handler:
+addi sp, sp, -(4 * 32)
+/* store context */
+
+/* read out the address of the vector table entry
+of the next pending interrupt */
+/* a read automatically enables interrupts, and clears
+the pending bit of the found interrupt */
+1:
+csrrsi t0, 0x345, 8
+
+/* if no interrupt is pending, the received addr (t0) will be 0 */
+beqz t0, 2f
+
+/* jump to interrupt vector table that contains the
+jump instruction pointing to the Rust handler function */
+jalr t0
+
+/* repeat until no more interrupts are pending */
+j 1b
+
+2:
+csrci mstatus, 8 /* disable global interrupts*/
+
+/* restore context */
+addi sp, sp, (4 * 32)
+
+/* return to code before initial context save */
+mret
+\end{lstlisting}
+
 \section{RTIC}
+Since \gls{rtic} was hard-coded to the ARM Cortex-M architecture and therefore the usage of the \gls{nvic}, all references to \gls{nvic} had to be changed to their corresponding \gls{clic} functions. Fortunately, \gls{nvic} and \gls{clic} work quite similar and offer nearly identical functionality. First, we planned to implement functionality to switch between architectures. But this would have meant to introduce a new layer of abstraction. And since \gls{rtic} version 2 was already in development, which should feature a more modular design, we decided not to change version 1 to a modular design but provide our RISC-V insights to the developers for their new version.
+
+However, a few details were not straight forward and will be described in the following.
+
+\subsection{Interrupt Setup}
+The setup of the interrupts for \gls{nvic} and \gls{clic} differ, since the \gls{clic} offers more configuration options. For the \gls{clic} vectorization must be enabled for each interrupt if nxti is not used. 
+
+\subsection{Logical Priorities}
+\gls{rtic} uses internal logical priorities. Here, 1 is the lowest priority, and 256 is the maximum priority. Since the \gls{nvic} uses inverted priorities as described in section \ref{sec:interrupt_configuration}, a logical to hardware priority conversion function is necessary. The \gls{clic} however uses priorities 0 to 255. So we changed this function to respect the \gls{clic} hardware priority system.
+
+\subsection{Interrupt Handlers}
+In the \gls{nvic}, context switching is handled in hardware. Therefore, there is no need for special treatment of interrupt handler functions in Rust. For the \gls{clic} however, special interrupt handler macros are needed, as described in section \ref{sec:interrupt_handler_macro}. We edited the \gls{rtic} code generation to add macros to the generated interrupt handlers.
 
 \section{Toolchain}
+With Cargo, Rust provides a straight forward build system. Therefore, we used Cargo to build our test environment. To run the simulation, however, make was used, since the simulation setup was already implemented in Makefiles. Therefore, also the cargo build command is wrapped inside a make command.
 
-\section{}
+\subsection{Build Process}
+To build a testing program, \texttt{make all} can be invoked.
+It runs \texttt{cargo build --release}.  If \texttt{nxti=1} is set in the make command, then the nxti feature is used in the runtime and \gls{rtic} crate. If \texttt{no_atomics=1} is set, the program is compiled for a target without atomics.
+
+In the file \texttt{build.rs} all linker scripts are listed that must be used by the linker. The order is important, since symbols that are added to the vector table need to be assigned the correct address. See section \ref{sec:interrupt_macro_labels}.
+
+\subsection{ABI}
+As described in section \ref{sec:register_count}, there exist two ABIs and also the E-Extension that change the register count, or the purpose of registers. Such changes need compiler support.
+The Rust compiler uses the LLVM framework. However, LLVM does not support any of these additions. Support is currently being added to LLVM~\cite{llvmRISCVEExtension}. We tried to build LLVM from source, with these new extensions included. But it is not possible to configure the Rust compiler to use just any LLVM backend, since it has to be a custom fork of LLVM that adds a lot of changes explicitly for Rust.

@@ -48,6 +48,7 @@ Since \gls{rtic} does not feature a kernel, all functionality lies in auto gener
 The whole \gls{rtic} program has to be defined inside a \texttt{\#app} macro. At compile time, the macro processor performs a static analysis of the program. The number of tasks, their priorities and the resources that can be accessed by the tasks are determined. With this information, a few interrupt handlers are generated. They are described in the following.
 
 \subsubsection{Task Dispatcher}
+\label{sec:task_dispatcher}
 Task dispatchers are responsible for the execution of all tasks of a specific priority.
 They are bound to an interrupt that is configured to the same priority.
 Each task dispatcher contains a queue with references to all tasks that are ready to be executed at a specific moment.
@@ -58,6 +59,7 @@ With this system, no scheduling algorithm is needed, since higher priority tasks
 Same priority tasks run cooperatively.
 
 \subsubsection{Timer Handler}
+\label{sec:timer_handler}
 With task dispatchers, it is only possible to spawn tasks that run immediately.
 To spawn tasks in the future, the timer handler is generated. It is an interrupt handler for a timer interrupt.
 The timer handler is unique in the system, and handles tasks of all priorities.
@@ -69,6 +71,7 @@ Since the timer interrupt is running at maximum priority, this happens immediate
 Since the actual running of the tasks is still handled by the task dispatcher, the priorities are still respected.
 
 \subsubsection{Shared Resources}
+\label{sec:shared_resources}
 Since it is known at compile time which tasks will access which resources, the locking of resources can be simplified.
 During the evaluation of the \texttt{\#app} macro, for each shared resource, a list is generated with all tasks that could access the resource.
 Tasks can only be preempted by other tasks, if a task dispatcher interrupt with higher priority fires.
@@ -131,3 +134,23 @@ Similarly, the triggers can be configured for each interrupt individually. Both 
 Furthermore, for the \gls{clic}, interrupts can be configured to be non vectorized, and therefore they will use the same handler as the default exception handler. 
 ~\cite{NVIC}\cite{CLIC}.
 
+\section{Register Count}
+\label{sec:register_count}
+In ARM Cortex-M3 there are 12 general purpose registers, plus 4 additional service registers, like the stack pointer~\cite{ARMRegisters}. In the RISC-V integer ABI, there are 32 general purpose registers\cite{RISCVIntegerABI}. ARM only features 4 caller saved registers, whereas in RISC-V, there are 16 caller saved registers, which makes context switches more expensive. There are several measures to reduce the amount of registers that have to be saved during a context switch. The Embedded ABI lowers the amount of caller saved registers to 4~\cite{RISCVEmbeddedABI}. The E-Extension only provides 16 registers~\cite{RISCVEExtension}. The resulting number of caller saved registers can be found in table \ref{tbl:register_counts}.
+
+\begin{table}
+  \centerfloat
+  \begin{tabular}{ l c c }
+    \toprule
+    \textbf{Configuration} & \textbf{Total Registers} & \textbf{Caller Saved Registers} \\
+    \midrule
+    ARM & 16 & 4 \\
+    RISC-V Integer ABI & 32 & 16 \\
+    RISC-V Embedded ABI & 32 & 4 \\
+    RISC-V E-Extension Integer ABI & 16 & 10 \\
+    RISC-V E-Extension Embedded ABI & 16 & 4 \\
+    \bottomrule
+  \end{tabular}
+  \caption{Register Count}%
+  \label{tbl:register_counts}
+\end{table}
