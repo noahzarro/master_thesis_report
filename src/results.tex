@@ -133,9 +133,10 @@ Since locking of shared resources is already highly optimized by \gls{rtic}, it 
 
 \subsection{Original Implementation}
 
-
+In the plot in figure~\ref{fig:plot_original}, 
 
 \begin{tikzpicture}
+\label{fig:plot_original}
 \begin{axis}[
 	x tick label style={
 		/pgf/number format/1000 sep=},
@@ -160,9 +161,77 @@ Since locking of shared resources is already highly optimized by \gls{rtic}, it 
 
 \subsection{NXTI}
 
+\begin{tikzpicture}
+\label{fig:plot_nxti}
+\begin{axis}[
+	x tick label style={
+		/pgf/number format/1000 sep=},
+	ylabel=Cycle Count,
+	enlargelimits=0.05,
+	legend style={at={(0.5,1.1)},
+	anchor=north,legend columns=-1},
+	ybar interval=0.7,
+        width=\textwidth,
+        xticklabels={Hardware Task, Higher Prio Task, Equal Prio Task , Lower Prio Task, Scheduling Timed Task, Start Timed Task},
+        xticklabel style={rotate=45, anchor=east}
+]
+\addplot 
+	coordinates {(0,32) (1,143)
+		 (2,43) (3,106) (4,322) (5,332)};
+\addplot 
+	coordinates {(0,58) (1,170)
+		 (2,51) (3,178) (4,307) (5,372)};
+\addplot 
+	coordinates {(0,60) (1,172)
+		 (2,51) (3,116) (4,326) (5,329)};
+\legend{Arm Cortex-M3 eabi,rv32imac,rv32imac (mnxti)}
+\end{axis}
+\end{tikzpicture}
+
 \subsection{E-Extension/EABI}
 
+\pgfplotstableread[col sep=comma]{
+Jahr, Facebook, Instagram, Snapchat, WhatsApp
+0, 32,58,60,41
+1,143,170,172,153
+2,43,51,51,51
+3,106,178,116,116
+4,322,307,326,288
+5,332,372,329,310
+}\eextensiontable
 
+\begin{tikzpicture}
+\label{fig:plot_eextension}
+\begin{axis}[
+	x tick label style={
+		/pgf/number format/1000 sep=},
+	ylabel=Cycle Count,
+	enlargelimits=0.05,
+	legend style={at={(0.5,1.1)},
+	anchor=north,legend columns=-1},
+        ybar=0cm,
+        xtick=data,
+        %xmajorgrids=true,
+        width=\textwidth,
+        enlarge x limits={abs=0.8},
+        xticklabels={Hardware Task, Higher Prio Task, Equal Prio Task , Lower Prio Task, Scheduling Timed Task, Start Timed Task},
+        xticklabel style={rotate=45, anchor=east},
+]
+\addplot[draw=none,fill=ETHBlue]
+	coordinates {(0,32) (1,143)
+		 (2,43) (3,106) (4,322) (5,332)};
+\addplot [draw=none,fill=ETHRed]
+	coordinates {(0,58) (1,170)
+		 (2,51) (3,178) (4,307) (5,372)};
+\addplot  [draw=none,fill=ETHPurple]
+	coordinates {(0,60) (1,172)
+		 (2,51) (3,116) (4,326) (5,329)};
+\addplot[ETHBlue,pattern=north east lines, pattern color=ETHBlue20]
+	coordinates {(0,41) (1,153)
+		 (2,51) (3,116) (4,288) (5,310)};
+\legend{Arm Cortex-M3 eabi,rv32imac,rv32imac (mnxti),rv32imac (fastirq) estimation}
+\end{axis}
+\end{tikzpicture}
 
 
 
@@ -220,3 +289,47 @@ This can be done in a separate section or directly in the sections above.
 Demonstrating that your implementation meets the objectives is usually done by showing a lower bound on a given figure of merit.
 Conversely, you should also illuminate the limitations of your implementation by showing upper bounds on these (or other appropriate) figures of merit.
 Critically examining your ideas and their implementation trying to find their limits is also part of your work!
+
+
+
+\begin{tikzpicture}
+\begin{axis}[
+	x tick label style={
+		/pgf/number format/1000 sep=},
+	ylabel=Cycle Count,
+	enlargelimits=0.05,
+	legend style={at={(0.5,1.1)},
+	anchor=north,legend columns=-1},
+	%ybar interval=1,
+        ybar=0pt,
+        bar width=15pt,
+        width=\textwidth,
+        xticklabels={Hardware Task, Higher Prio Task, Equal Prio Task , Lower Prio Task, Scheduling Timed Task, Start Timed Task},
+        xticklabel style={rotate=45, anchor=east},
+        extra x ticks={-0.5,0.5,1.5,2.5,3.5,4.5,5.5},
+        extra x tick labels=\empty,
+        extra x tick style={
+            grid=major,
+            % reset the tick length to the default value
+            % (which otherwise would be the same as for the normal ticks
+            %  which is set to zero in this case --> see above)
+            xtick style={
+                /pgfplots/major tick length=4pt,
+            },
+        },
+]
+\addplot 
+	coordinates {(0,32) (1,143)
+		 (2,43) (3,106) (4,322) (5,332)};
+\addplot 
+	coordinates {(0,58) (1,170)
+		 (2,51) (3,178) (4,307) (5,372)};
+\addplot 
+	coordinates {(0,60) (1,172)
+		 (2,51) (3,116) (4,326) (5,329)};
+\addplot 
+	coordinates {(0,41) (1,153)
+		 (2,51) (3,116) (4,288) (5,310)};
+\legend{Arm Cortex-M3 eabi,rv32imac,rv32imac (mnxti),rv32imac (fastirq) estimation}
+\end{axis}
+\end{tikzpicture}
