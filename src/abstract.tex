@@ -1,20 +1,12 @@
 \chapter*{Abstract}
 
-The abstract summarizes what this report is about.
-It focusses on the big picture and does not go into details.
-You should write concisely about the following points:
+In the last few years, the Rust programming language strongly grew in popularity. And since it can be used as a memory save systems language, it is increasingly used in embedded programming. However, existing embedded libraries strongly focus on the ARM architecture.
+The goal of this thesis was to evaluate and port an existing \gls{rtos} to the ControlPULP IP, that implements a RISC-V core. The choice fell on RTIC, a well maintained lightweight \gls{rtos}.
 
-\begin{itemize}
-  \item Describe the \textbf{background} of your project: what is the motivation for your project and why is it important?
-  \item Describe the \textbf{objectives} of your project.
-  \item Describe the \textbf{problems} that must be addressed to achieve the objectives---why are these problems difficult?
-  \item Describe your \textbf{approach} and \textbf{methods}.
-  \item Summarize the most important \textbf{results}.
-  \item State the main \textbf{conclusion} and its significance.
-\end{itemize}
+In the process, we created or extended several Rust RISC-V libraries to add support for interrupt handling, especially with the \gls{clic}.
 
-The abstract typically takes half a page and should not be longer than one full page.
-Try to write a draft of the abstract early on to have a good idea of your project, but revise the abstract as the project progresses.
-Write the final version of the abstract once the report is otherwise complete.
+With the \gls{rtos} ported to both platforms, ARM and RISC-V, it was possible to perform performance measurements on both architectures go gain insights on where the ControlPULP IP would have potential for improvements. 
 
+The measurements mostly focused on the latency of task spawns, since these are the most important core transitions in RTIC. They were performed by reading out the cycle count registers that are provided on both platforms.
 
+With several improvements to the ControlPULP IP applied, the RTOS reaches comparable performance to the original ARM implementation. However, there is still room for further improvements and analysis.

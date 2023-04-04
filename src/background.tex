@@ -1,51 +1,44 @@
 \chapter{Background}
 \label{ch:background}
 
-Explain the background and theory underlying your project.
-Assume that the average reader has the same knowledge you had \emph{before} undergoing this project.
-This chapter should transfer all knowledge necessary to understand the following chapters.
-
-As this and the following chapters are likely longer than a few pages, consider structuring them into sections (but avoid fragmentation by overly fine-grained sectioning).
-Use the \verb|\..section{}| command family as illustrated below:
-
 \section{RTOS Evaluation}
 \label{sec:rtos_evaluation}
 
 Since Rust is a quite new language, there is no dominating open source RTOS yet, as it is the case for FreeRTOS in the Embedded C/C++ world.
 Therefore, a few competing RTOS's exist in the Rust embedded world.
-The website "Are we RTOS yet?"~\cite{AWRY} lists the most important RTOS's that exist for Rust at the moment.
+The website "Are we RTOS yet?"~\cite{AWRY} lists the most important RTOS's that currently exist for Rust.
 One criterion for the selection of an operating system was that it is fully written in Rust.
 There exist a few RTOS's that are written in C but feature a Rust wrapper.
 However, with this setup, the memory safety guarantees by the compiler are lost.
-Therefore, we picked six RTOS's with the most stars and forks on GitHub for closer investigation. The chosen OSes were: Bern, Drone, Embassy, Hubris, Tock and RTIC. 
+Therefore, we picked the six RTOS's with the most stars and forks on GitHub for closer investigation. The chosen OSes were: Bern, Drone, Embassy, Hubris, Tock and RTIC. 
 
 \subsection{Bern}
 Bern OS was developed in the process of a master thesis. It features multiple isolated processes, which are scheduled with a preemptive round-robin scheduling algorithm, similar to FreeRTOS. However, since it is a relatively new, one-man project, it was far from sure that it would be continued, therefore we did not choose it~\cite{Bern}.
 
 \subsection{Hubris}
-Hubris resembles a more classical OS, since it features a kernel that runs in privileged mode, and tasks that are separately complied and run in an unprivileged mode. However, we preferred a simpler implementation that does not use different privilege modes~\cite{Hubris}. 
+Hubris resembles a more classical OS, since it features a kernel that runs in privileged mode, and tasks that are separately complied and run in an unprivileged mode. However, we preferred a simpler, more bare-metal implementation that does not use different privilege modes~\cite{Hubris}. 
 
 \subsection{Tock}
 Tock OS was the most popular OS on GitHub, but it turned out that it does not feature prioritized tasks. Since this is essential for an embedded RTOS we did not choose it~\cite{Tock}.
 
 \subsection{Drone/Embassy}
-Drone and Embassy both support tasks with different priorities. Tasks with the same priority are cooperatively run using the async/await concept. It would have been an interesting choice, but finally we decided to choose RTIC that was solely based on interrupts, which was also a very interesting concept~\cite{Drone},~\cite{Embassy}.
+Drone and Embassy both support tasks with different priorities. Tasks with the same priority are cooperatively run using the async/await concept. It would have been an interesting choice, but finally we decided to choose RTIC that was solely based on interrupts.~\cite{Drone},~\cite{Embassy}.
 
 \subsection{RTIC}
 \gls{rtic} is a very light weight operating system that does not feature a kernel or scheduler, but outsources the whole OS-functionality to auto generated interrupt handlers.
 It is developed by a team of the university of Luleå in Sweden.
 Therefore, long term support seamed likely.
-Since it uses the innovative interrupt based task dispatching model, we chose it to port it to the \gls{pulp} platform.
+Since it uses the innovative interrupt based task dispatching model, it interacts closely with the hardware and was therefore the optimal choice to identify potential performance issues of the hardware implementation of the ControlPULP IP.
 
 \section{RTIC}
 \gls{rtic}, formerly known as RTFM (Real Time For the Masses), provides all features that are needed in an embedded RTOS, while generating minimal overhead.
-It features tasks with static priorities. Higher priority tasks can preempt lower priority tasks. Equal priority tasks, however, run sequentially.
+It features tasks with static priorities. Higher priority tasks can preempt lower priority tasks. Equal priority tasks, however, run sequentially and therefore cooperatively.
 There are no message passing queues as for example in FreeRTOS, but tasks can be passed a payload at spawn time.
 Furthermore, tasks can access shared resources. However, the list of resources that can be accessed by a specific task has to be given at compile time~\cite{RTIC}. 
 
 \subsection{Code Generation}
 Since \gls{rtic} does not feature a kernel, all functionality lies in auto generated interrupt handlers.
-The whole \gls{rtic} program has to be defined inside a \texttt{\#app} macro. At compile time, the macro processor performs a static analysis of the program. The number of tasks, their priorities and the resources that can be accessed by the tasks are determined. With this information, a few interrupt handlers are generated. They are described in the following.
+The whole \gls{rtic} program has to be defined inside a \texttt{\#app} macro. At compile time, the macro processor performs a static analysis of the program. The number of tasks, their priorities and the resources that can be accessed by the tasks are determined. With this information, the necessary interrupt handlers are generated. They are described in the following.
 
 \subsubsection{Task Dispatcher}
 \label{sec:task_dispatcher}
@@ -66,7 +59,7 @@ The timer handler is unique in the system, and handles tasks of all priorities.
 The timer interrupt is set to the maximum priority.
 If a task spawn is scheduled in the future, a reference to the task is placed in the timer queue of the timer handler, together with its desired spawn time.
 As soon as the timer queue is modified, the timer comparison value is adjusted, such that the timer interrupt fires at the spawn time of the task that will start first.
-If the timer interrupts and the handler is started, it moves all tasks that are still in the timer queue and became ready into their corresponding task dispatcher, and pends its corresponding interrupt in software.
+If the timer interrupts and the handler is run, it moves all tasks that are still in the timer queue and now became ready into their corresponding task dispatcher, and pends the task dispatcher's interrupt in software.
 Since the timer interrupt is running at maximum priority, this happens immediately.
 Since the actual running of the tasks is still handled by the task dispatcher, the priorities are still respected.
 
@@ -75,6 +68,8 @@ Since the actual running of the tasks is still handled by the task dispatcher, t
 Since it is known at compile time which tasks will access which resources, the locking of resources can be simplified.
 During the evaluation of the \texttt{\#app} macro, for each shared resource, a list is generated with all tasks that could access the resource.
 Tasks can only be preempted by other tasks, if a task dispatcher interrupt with higher priority fires.
+
+
 Therefore, to lock a shared resource, one can just temporarily raise the interrupt level threshold of the system to the highest level of any task that also has access to the shared resource. Like this, it is guaranteed, that no other task can access the shared resource while it is locked.
 If a task itself is the one with the highest priority, accessing a specific resource, the locking of this resource is completely optimized out at compile time.
 
@@ -82,9 +77,9 @@ If a task itself is the one with the highest priority, accessing a specific reso
 
 \begin{figure}
   \centerfloat
-  \includegraphics[width=\textwidth]{fig/crates.png}
+  \includegraphics[width=\textwidth]{fig/crate_hierarchy.pdf}
   % Note: We do not have the SVG source file for the image above, so we have to put the PDF under version control.
-  \caption{TODO: Create SVG}%
+  \caption{The Hierarchy of Embedded Crates}%
   \label{fig:embedded_crates}
   % Note: The `\label{}` can be on the line after the `\caption{}` if the `\caption{}` line ends with a comment.
 \end{figure}
@@ -92,7 +87,9 @@ If a task itself is the one with the highest priority, accessing a specific reso
 Since Rust appeared only very recently, the community already gained a lot of experience in embedded development.
 Therefore, attempts were made to standardize and categorize embedded libraries.
 There are several types of libraries, or crates, as they are called in Rust, see figure \ref{fig:embedded_crates}.
-The most of the embedded libraries in Rust are strongly focused on the ARM Cortex-M architecture. Implementations for RISC-V microcontroller did exist, however, they are usually very minimalistic. See section~\ref{sec:libraries} for an overview of the necessary changes for RISC-V.
+Most of the embedded libraries in Rust are strongly focused on the ARM Cortex-M architecture. Implementations for RISC-V microcontroller did exist, however, they are usually very minimalistic. See section~\ref{sec:libraries} for an overview of the necessary changes for RISC-V.
+
+In the following, the definitions of different embedded Rust crate types are introduced.
 
 \subsection{Micro-architecture Crate (MAC)}
 These crates handle any useful routines common to the processor core of a specific microcontroller, as well as any peripherals that are common to all microcontrollers that use that particular type of processor core. For example, the cortex-m crate gives features functions to enable and disable interrupts, which are the same for all Cortex-M based microcontrollers. It also gives you access to the 'SysTick' peripheral that is included in all Cortex-M based microcontrollers~\cite{RustEmbedded}. There also exists a very basic crate for RISC-V.
@@ -131,12 +128,12 @@ Both the \gls{nvic} and the \gls{clic} allow for setting priority levels for int
 Higher priority interrupts preempt lower priority interrupts.
 Both implementation feature 256 interrupt levels. However, while for the \gls{clic} the most urgent interrupt has priority 255, the \gls{nvic} inverts priority levels, and considers interrupts with the lowest priority value as the most urgent.
 Similarly, the triggers can be configured for each interrupt individually. Both \gls{clic} and \gls{nvic} feature level and edge sensitive triggers. For certain implementation of \gls{nvic} and all \gls{clic} implementations, it is possible to set priority threshold. Interrupts with priority below this threshold can be pended, but will not be executed until the threshold is lowered. For both implementations, this threshold can be dynamically changed at runtime.
-Furthermore, for the \gls{clic}, interrupts can be configured to be non vectorized, and therefore they will use the same handler as the default exception handler. 
+Furthermore, for the \gls{clic}, interrupts can be configured to be non vectorized, and therefore they will use one single handler function as the default exception handler. 
 ~\cite{NVIC}\cite{CLIC}.
 
 \section{Register Count}
 \label{sec:register_count}
-In ARM Cortex-M3 there are 12 general purpose registers, plus 4 additional service registers, like the stack pointer~\cite{ARMRegisters}. In the RISC-V integer ABI, there are 32 general purpose registers\cite{RISCVIntegerABI}. ARM only features 4 caller saved registers, whereas in RISC-V, there are 16 caller saved registers, which makes context switches more expensive. There are several measures to reduce the amount of registers that have to be saved during a context switch. The Embedded ABI lowers the amount of caller saved registers to 4~\cite{RISCVEmbeddedABI}. The E-Extension only provides 16 registers~\cite{RISCVEExtension}. The resulting number of caller saved registers can be found in table \ref{tbl:register_counts}.
+In ARM Cortex-M3 there are 12 general purpose registers, plus 4 additional service registers, like the stack pointer~\cite{ARMRegisters}. In the default RISC-V integer ABI, there are 32 general purpose registers\cite{RISCVIntegerABI}. ARM only features 4 caller saved registers, whereas in RISC-V, there are 16 caller saved registers. Since the caller saved registers must be pushed onto the stack in case of an interrupt context switch, this makes context switches in RISC-V more expensive. There are several measures to reduce the amount of registers that have to be saved during a context switch. The Embedded ABI lowers the amount of caller saved registers to 4~\cite{RISCVEmbeddedABI}. The E-Extension only provides 16 registers~\cite{RISCVEExtension}. The resulting number of caller saved registers can be found in table \ref{tbl:register_counts}.
 
 \begin{table}
   \centerfloat
@@ -147,8 +144,8 @@ In ARM Cortex-M3 there are 12 general purpose registers, plus 4 additional servi
     ARM & 16 & 4 \\
     RISC-V Integer ABI & 32 & 16 \\
     RISC-V Embedded ABI & 32 & 4 \\
-    RISC-V E-Extension Integer ABI & 16 & 10 \\
-    RISC-V E-Extension Embedded ABI & 16 & 4 \\
+    RISC-V E-Extension, Integer ABI & 16 & 10 \\
+    RISC-V E-Extension, Embedded ABI & 16 & 4 \\
     \bottomrule
   \end{tabular}
   \caption{Register Count}%

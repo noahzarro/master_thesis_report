@@ -1,11 +1,16 @@
 \chapter{Conclusion and Future Work}
 \label{ch:conclusion}
+\label{sec:future_work}
 
-Draw your conclusions from the results and summarize your contributions.
-Point out aspects that need to be investigated further.
+The evaluation shows that the performance of \gls{rtic} on ARM and RISC-V is comparable.
+Even though, the first RISC-V implementation's performance was far behind the performance of the ARM implementation, it could be improved significantly by the usage of the \texttt{nxti} \gls{csr}. Furthermore, It can be estimated with high confidence, that the usage of the \texttt{fastirq} hardware extension would increase performance to a level that is very close to ARM.
 
-The conclusion can be structured inversely to the introduction:
-Summarize how the \emph{evaluation} backs the \emph{solution}, which solves the \emph{problem}.
-Describe how your contributions improve the \emph{situation} and what other (potentially newly discovered) problems have to be solved in the future.
+Naturally, the actual inclusion of the \texttt{fastirq} extension into the test setup would be the next step to perform. Another interesting project would be to use the RISC-V E-Extension and EABI, that could possibly improve the interrupt handling performance even further.
 
-Be concise: the conclusion normally fits on a single page and is rarely longer than two pages.
+In the process, we created and updated several Rust crates that can be used in the RISC-V embedded setup. These crates can now be used inside the research group, but since they are also published under an open source license, they can be used by the whole Rust community. This could also accelerate the development of a Rust RISC-V embedded community, which is desirable for further integration of Rust into the \gls{pulp} platform.
+
+Furthermore, the insights gained while porting \gls{rtic} to RISC-V will also benefit the developers of \gls{rtic} that are currently working on a second version of \gls{rtic} that offers native RISC-V support.
+
+Lastly, a foundation was laid for further Rust development on the PULP platform. For potential next Rust projects, there now exists a runtime with interrupt support and an architecture crate that offers access to all \gls{clic} functionalities. And most importantly, now there exists a reference project with examples that ease the starting of a new project.
+
+

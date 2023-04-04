@@ -1,27 +1,16 @@
 \chapter{Introduction}
 \label{ch:introduction}
 
-The introduction motivates your work and puts it into a bigger context.
-It should answer the following questions:
-What is the background of this work?
-What is the state of the art?
-Why is this project necessary to advance the state of the art?
-What are the problems that have to be solved and why are they difficult?
-What are your contributions to solve these problems?
-How do you evaluate your solution to show that it is adequate and applicable?
+Rust was first released in 2015, and has since then amazed programmers all around the globe~\cite{RustWikipedia}. It is both a systems language and its compiler can guarantee memory safety. These two features rarely come together. An investigation performed by Microsoft showed that about 70\% of the bugs they found in their codebase, are related to memory safety issues~\cite{MemeorySafety70}. These could be avoided completely if a memory safe language were used. Furthermore, the Rust development is based on the nearly 40 years of experience with C and other related languages. Therefore, Rust comes out of the box with the most modern features and with the convenience of a recently developed language, like built-in support for hash tables.
 
-An introduction written along these questions naturally follows the \textit{\gls{spse}}\footnote{%
-  The \acrshort{spse} approach was established in a book~\cite{Hoey83}, but is also briefly summarized in a more recent article~\cite{MP12}, which is available online.
-} approach.
-In the \emph{situation}, you set the scene for your work and catch the interest of the readers by showing the importance and generality of the scene.
-In the \emph{problem}, you spot an issue in the scene and show why and how it significantly taints the scene.
-In the \emph{solution}, you outline your solution to that issue.
-Finally, in the \emph{evaluation}, you present the main arguments why the claimed solution actually does solve the problem.
+These are some of the reasons why Microsoft, Google and Linux started using Rust in their codebases \cite{MicrosoftRust},\cite{GoogleRust},\cite{LinuxRust}. Consequently, Rust could also be an opportunity for the \gls{pulp} platform. Therefore, we decided to give Rust a chance.
 
-In the following chapters, you will elaborate each of the four \gls{spse} elements in detail:
-In \textsl{Background}, you lay the foundations for an in-depth understanding of the situation and the problem.
-In \textsl{Related Work}, you show how others have address this (or similar) problems and why their solutions are not sufficient or applicable.
-In \textsl{Implementation}, you specify your solution, which you then evaluate rigorously for strengths and weaknesses in \textsl{Results}.
+In the embedded setup, a \gls{rtos} is needed for most operations. Since Rust is much younger than its competitors C and C++, there do not exist many embedded operating systems yet. And the few that exist, are mostly tailor-made for the ARM Cortex-M architecture. Therefore, the available \gls{rtos}s are evaluated in section \ref{sec:rtos_evaluation}.
 
-At the end of the introduction, you should explicitly show this structure to the reader by briefly explaining how this report is organized.
-Instead of using the general \gls{spse} terminology and the chapter names mentioned above, we urge you to use the domain-specific terminology established in the introduction and point to chapters using cross references (e.g., refering to \cref{ch:background} instead of ``the Background chapter'').
+The most fitting \gls{rtos}, \gls{rtic}, was ported to the RISC-V architecture, see section \ref{sec:rtic_port}. Since \gls{rtic} is heavily reliant on interrupts, a platform with a powerful interrupt controller was chosen. The choice fell on the ControlPULP IP, that features the \acrfull{clic}, that is closely related to the \gls{nvic}, the interrupt controller of ARM Cortex-M.
+
+Since the \gls{clic} appeared only very recently, there was no support for it in any Rust libraries. Support had to be added by us, see section \ref{sec:libraries}.
+
+The porting of the RTOS has two main benefits. First, it allows Rust programs that need an operating system to run on the \gls{pulp} platform. Secondly, it allows us to compare its performance on ARM and RISC-V, and therefore to identify possible drawbacks of the hardware implementation of the ControlPULP IP, or of the newly written \gls{clic} libraries.
+
+In the first iteration, the performance of \gls{rtic} was much better on ARM than on RISC-V. See section \ref{sec:results_original_implementation}. By utilizing the \texttt{mnxti} \gls{csr} of the \gls{clic} we were able to improve the performance of \gls{rtic} on RISC-V by a significant amount. See section \ref{sec:results_nxti}. Furthermore, we could estimate with high confidence, that the usage of the \texttt{fastirq} hardware extension for the \gls{clic} would bring the performance on both architectures to a very comparable level. See section \ref{sec:results_fastirq} for the final results.
